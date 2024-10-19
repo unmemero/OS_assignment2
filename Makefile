@@ -55,10 +55,21 @@ gpush:
 	@read -p "Enter commit message: " msg; \
 	git status; \
 	git add -A; \
-	echo "Staging changes..."; \
+	echo "\033[33mStaging changes...\033[0m"; \
 	git status; \
 	if git diff --cached --exit-code > /dev/null; then \
 		echo "No changes to commit."; \
 	else \
-		git commit -m "$$msg" && git push origin main; \
+		git commit -m "$$msg"; \
+		echo -e "\033[34mPulling latest changes with rebase...\033[0m"; \
+		git pull --rebase origin main; \
+		git push origin main; \
 	fi
+
+# Taring the project
+tar:
+	tar -czvf project.tar.gz  *.c Report.pdf
+
+# Convert README.md to Report.pdf
+pdf:
+	pandoc README.md -o Report.pdf
