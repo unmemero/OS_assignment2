@@ -53,10 +53,12 @@ run:
 # Git push rule
 gpush:
 	@read -p "Enter commit message: " msg; \
+	git status; \
 	git add -A; \
+	echo "Staging changes..."; \
+	git status; \
 	if git diff --cached --exit-code > /dev/null; then \
 		echo "No changes to commit."; \
 	else \
 		git commit -m "$$msg" && git push origin main; \
 	fi
-
