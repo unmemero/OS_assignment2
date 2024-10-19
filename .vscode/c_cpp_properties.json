@@ -1,4 +1,4 @@
-{    
+{
     "configurations": [
         {
             "name": "Linux",
@@ -7,14 +7,15 @@
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c17",
             "compilerArgs": [
                 "-I/usr/include",
                 "-I/usr/include/x86_64-linux-gnu",
-                "-std=gnu17"
+                "-std=gnu17"  // Set the compiler argument here
             ],
-            "cStandard": "c17",
             "cppStandard": "gnu++17",
-            "intelliSenseMode": "linux-gcc-x64"
+            "intelliSenseMode": "linux-gcc-x64",
+            "configurationProvider": "ms-vscode.makefile-tools"
         }
     ],
     "version": 4
