@@ -52,7 +52,7 @@ int main(int argc, char *argv[]){
 	while((bytes_read = read(STDIN_FILENO, buffer, BUFFSIZE))>0){
 		/*Send to used in UDP to send data through sockets. Uses The fd of the socket, the buffer, 
 		number of bytes to send, The flags (no special handling so 0), the destination address, and the size of the address*/
-		if(sendto(socket_fd,buffer,bytes_read,0,result->ai_addr,result->ai_addrlen) < 0){
+		if(send(socket_fd,buffer,bytes_read,0) < (ssize_t)0){
 			fprintf(stderr, "Error sending data: %s\n", strerror(errno));
 			freeaddrinfo(result);
 			/*Closing failed*/
@@ -65,7 +65,7 @@ int main(int argc, char *argv[]){
 	}
 
 	/*Send empty response*/
-	if(sendto(socket_fd,NULL,0,0,result->ai_addr,result->ai_addrlen) < 0){
+	if(send(socket_fd,NULL,(size_t)0,0) < 0){
 		fprintf(stderr, "Error sending data: %s\n", strerror(errno));
 		freeaddrinfo(result);
 		if(close(socket_fd) < 0){
