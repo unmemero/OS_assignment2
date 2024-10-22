@@ -9,7 +9,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define BUFFSIZE 481 //Not sure about this value, may need to do it client side
+#define BUFFSIZE 480
 
 typedef long long int muy_largo_t; // Easier to write
 
@@ -79,13 +79,11 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in server_address;
     memset(&server_address, 0, sizeof(server_address));
     server_address.sin_family = AF_INET;
-    server_address.sin_port = htons(port); /* Convert port to network byte order */
-    server_address.sin_addr.s_addr = INADDR_ANY; /* Bind to all interfaces */
+    server_address.sin_port = htons(port); 
+    server_address.sin_addr.s_addr = 0; 
 
     /*Binding*/
-    int bind_status = bind(socket_fd, (struct sockaddr *)&server_address, sizeof(server_address));
-    /*Bind failed*/
-    if (bind_status < 0) {
+    if(bind(socket_fd, (struct sockaddr *)&server_address, sizeof(server_address)) < 0) {
         fprintf(stderr, "Failed binding socket: %s\n", strerror(errno));
         close(socket_fd);
         return 1;
@@ -97,7 +95,11 @@ int main(int argc, char *argv[]) {
 
     /*Receive and print data*/
     while ((bytes_received = recv(socket_fd, buffer, BUFFSIZE, 0)) > 0) {
-        buffer[bytes_received] = '\0'; /* Null-terminate the received data */
+        if (bytes_received == 0) {
+            printf("Received empty packet. Shutting down server...\n");
+            break;
+        }
+        
         if (better_write(STDOUT_FILENO, buffer, bytes_received) < 0) {
             fprintf(stderr, "Failed writing data: %s\n", strerror(errno));
             close(socket_fd);

@@ -19,79 +19,68 @@ int main(int argc, char *argv[]){
 
 	/*Initialize buffer, get server name and port*/
 	char buffer[BUFFSIZE], *server_name = argv[1], *port = argv[2];
-	/*Create socket (IPv4, Datagram for UDP, IP PROTOCOL)*/
-	int socket_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	/*Check if socket was created*/
-	if(socket_fd < 0){
-		fprintf(stderr, "Error creating socket: %s\n", strerror(errno));
-		return 1;
-	}
-	
-	/*Get hints about address with getaddrinfo*/
+
+	/*Create hints*/
 	struct addrinfo hints, *result;
-	/*Initialize struct with 0's*/
-	memset(&hints, 0, sizeof(hints));
-	/*Prep hints*/
+	memset(&hints,0,sizeof(hints));
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_DGRAM;
 	hints.ai_protocol = 0;
 	hints.ai_flags = 0;
-	result = NULL;
 
-	/*Get the address info*/
-	int getaddrinfo_code = getaddrinfo(server_name, port, &hints, &result);
-	if(getaddrinfo_code != 0){
-		fprintf(stderr, "Error getting address info: %s\n", gai_strerror(getaddrinfo_code));
+	/*Get address info*/
+	int gaicode = getaddrinfo(server_name,port,&hints,&result);
+	if(gaicode != 0){
+		fprintf(stderr,"Error getting address info\n");
 		return 1;
 	}
 
-	/*Bitconeeeect*/
-	if(connect(socket_fd, result->ai_addr, result->ai_addrlen) < 0){
-		fprintf(stderr, "Error connecting to server: %s\n", strerror(errno));
+	/*Iterate through GAI result LL*/
+	struct addrinfo *i;
+	int sockfd;
+
+	for(i=result;i != NULL;i=i->ai_next){
+		sockfd = socket(i->ai_family,i->ai_socktype,i->ai_protocol);
+		if(sockfd < 0){
+			continue;
+		}
+		break;
+	}
+
+	if(i == NULL){
+		fprintf(stderr,"Error finding socket");
 		freeaddrinfo(result);
-		close(socket_fd);
 		return 1;
 	}
 
-	/*Send until STDIN is empty*/
-	size_t bytes_read;
-	while((bytes_read = read(STDIN_FILENO, buffer, BUFFSIZE)) > 0){
-		/* Use sendto to send data to the server address */
-		if(send(socket_fd, buffer, bytes_read, 0) < 0){
-			fprintf(stderr, "Error sending data: %s\n", strerror(errno));
+	ssize_t num_bytes_read;
+	while ((num_bytes_read = read(STDIN_FILENO, buffer, BUFFSIZE)) > 0) {
+		if (send(sockfd, buffer, num_bytes_read, 0) == -1) {
+			fprintf(stderr,"Error sending\n");
+			close(sockfd);
 			freeaddrinfo(result);
-			close(socket_fd);
 			return 1;
 		}
 	}
 
-	/*Send empty response*/
-	if(send(socket_fd, NULL, 0, 0) < 0){
-		fprintf(stderr, "Error sending empty packet: %s\n", strerror(errno));
-		freeaddrinfo(result);
-		close(socket_fd);
-		return 1;
-	}
+    if (num_bytes_read == -1) {
+        perror("read");
+        close(sockfd);
+        freeaddrinfo(result);
+        return 1;
+    }
 
-	/*Cleanup and return*/
-	freeaddrinfo(result);
-	if(close(socket_fd) < 0){
-		fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
-		return 1;
-	}
+    // Send an empty packet to indicate EOF
+    if (send(sockfd, NULL, 0, 0) == -1) {
+        perror("send EOF");
+        close(sockfd);
+        freeaddrinfo(result);
+        return 1;
+    }
+
+    // Clean up
+    close(sockfd);
+    freeaddrinfo(result);
 
 	return 0;
 }
-
-
-
-
-/*
-	QUESTIONS FOR DR. LAUTER
-	1. Do we handle null terminator on client or server side? (Tell him you think on server until EOF)
-	2. Send() on its own doesn't work, need to use sendto() or establish connection with connect. Mention UDP is connectionless.
-	(base) pills@rpc assignment2 main $ ./send_udp 129.108.156.68 8080
-	hello
-	Error sending data: Destination address required
-	Expected results only working with connect()
-*/

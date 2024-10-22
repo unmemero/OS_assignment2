@@ -11,7 +11,7 @@
             "compilerArgs": [
                 "-I/usr/include",
                 "-I/usr/include/x86_64-linux-gnu",
-                "-std=gnu17"  // Set the compiler argument here
+                "-std=gnu17"
             ],
             "cppStandard": "gnu++17",
             "intelliSenseMode": "linux-gcc-x64",
