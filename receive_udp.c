@@ -9,7 +9,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define BUFFSIZE 480
+#define BUFFSIZE 65536
 
 typedef long long int muy_largo_t; // Easier to write
 
@@ -95,11 +95,6 @@ int main(int argc, char *argv[]) {
 
     /*Receive and print data*/
     while ((bytes_received = recv(socket_fd, buffer, BUFFSIZE, 0)) > 0) {
-        if (bytes_received == 0) {
-            printf("Received empty packet. Shutting down server...\n");
-            break;
-        }
-        
         if (better_write(STDOUT_FILENO, buffer, bytes_received) < 0) {
             fprintf(stderr, "Failed writing data: %s\n", strerror(errno));
             close(socket_fd);
