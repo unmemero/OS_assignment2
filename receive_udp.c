@@ -24,10 +24,10 @@ ssize_t better_write(int fd, const char *buf, size_t count) {
     while (to_be_written > 0) {
         res_write = write(fd, &buf[already_written], to_be_written);
         if (res_write < 0) {
-            return res_write; // Error
+            return res_write; 
         }
         if (res_write == 0) {
-            return already_written; // Nothing written, stop
+            return already_written;
         }
         already_written += res_write;
         to_be_written -= res_write;

@@ -7,7 +7,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#define BUFFSIZE 1<<17
+#define BUFFSIZE 480
 
 typedef long long int muy_largo_t;
 typedef struct sockaddr_in sockaddr_in;

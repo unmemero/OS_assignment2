@@ -68,7 +68,7 @@ gpush:
 
 # Taring the project
 tar:
-	tar -czvf project.tar.gz  *.c Report.pdf
+	tar -czvf homework_2.tar.gz  *.c Report.pdf
 
 # Convert README.md to Report.pdf
 pdf:
