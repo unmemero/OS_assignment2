@@ -12,6 +12,8 @@
 #define BUFFSIZE 65536
 
 typedef long long int muy_largo_t; // Easier to write
+typedef struct sockaddr_in sockaddr_in; 
+typedef struct sockaddr sockaddr;
 
 /*Better write*/
 ssize_t better_write(int fd, const char *buf, size_t count) {
@@ -68,7 +70,6 @@ int main(int argc, char *argv[]) {
 
     /*Create socket*/
     int socket_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-
     /*Socket failed*/
     if (socket_fd < 0) {
         fprintf(stderr, "Failed creating socket: %s\n", strerror(errno));
@@ -76,14 +77,14 @@ int main(int argc, char *argv[]) {
     }
 
     /*Bind socket*/
-    struct sockaddr_in server_address;
+    sockaddr_in server_address;
     memset(&server_address, 0, sizeof(server_address));
     server_address.sin_family = AF_INET;
     server_address.sin_port = htons(port); 
     server_address.sin_addr.s_addr = 0; 
 
     /*Binding*/
-    if(bind(socket_fd, (struct sockaddr *)&server_address, sizeof(server_address)) < 0) {
+    if(bind(socket_fd, (sockaddr *)&server_address, sizeof(server_address)) < 0) {
         fprintf(stderr, "Failed binding socket: %s\n", strerror(errno));
         close(socket_fd);
         return 1;
@@ -105,7 +106,10 @@ int main(int argc, char *argv[]) {
     /*FAILED RECV*/
     if (bytes_received < 0) {
         fprintf(stderr, "Failed receiving data: %s\n", strerror(errno));
-        close(socket_fd);
+        if(close(socket_fd)){
+            fprintf(stderr, "Failed closing socket: %s\n", strerror(errno));
+            return 1;
+        };
         return 1;
     }
 

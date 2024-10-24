@@ -7,7 +7,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#define BUFFSIZE 480
+#define BUFFSIZE 65536
 
 typedef long long int muy_largo_t;
 typedef struct sockaddr_in sockaddr_in;
@@ -56,8 +56,9 @@ int main(int argc, char *argv[]){
     memset(&client, 0, sizeof(client));
     client.sin_family = AF_INET;
     client.sin_port = htons(port); 
-    client.sin_addr.s_addr = htonl(INADDR_ANY); /* Bind to any address */
-
+    client.sin_addr.s_addr = htonl(INADDR_ANY); 
+	
+	/* Bind to any address */
     if(bind(sockfd, (sockaddr *)&client, sizeof(client)) < 0) {
         fprintf(stderr, "Failed binding socket: %s\n", strerror(errno));
         if(close(sockfd)){
@@ -72,10 +73,24 @@ int main(int argc, char *argv[]){
 	ssize_t received;
 	sockaddr_in sender;
 	socklen_t sender_len = sizeof(sender);
+	for(;;){
+		/*Receive data*/
+		received = recvfrom(sockfd, buffer, BUFFSIZE, 0, (sockaddr *)&sender, &sender_len);
+		if(received >= 0){
+			/*Send data*/
+			if (sendto(sockfd, buffer, received, 0, (sockaddr *)&sender, sender_len) < 0) {
+				fprintf(stderr,"Error sending data: %s\n", strerror(errno));
+				if(close(sockfd)<0){
+					fprintf(stderr,"Error closing socket: %s\n",strerror(errno));
+					return 1;
+				}
+				return 1;
+			}
+		}
 
-	while((received = recvfrom(sockfd, buffer, BUFFSIZE, 0, (sockaddr *)&sender, &sender_len)) >= 0){
-		if (sendto(sockfd, buffer, received, 0, (sockaddr *)&sender, sender_len) < 0) {
-			fprintf(stderr,"Error sending data: %s\n", strerror(errno));
+		/*Receive failed*/
+		if(received < 0){
+			fprintf(stderr,"Error receiving info: %s\n",strerror(errno));
 			if(close(sockfd)<0){
 				fprintf(stderr,"Error closing socket: %s\n",strerror(errno));
 				return 1;
@@ -84,17 +99,9 @@ int main(int argc, char *argv[]){
 		}
 	}
 
-	if(received < 0){
-		fprintf(stderr,"Error receiving info: %s\n",strerror(errno));
-		if(close(sockfd)<0){
-			fprintf(stderr,"Error closing socket: %s\n",strerror(errno));
-			return 1;
-		}
-		return 1;
-	}
-
+	/*Close socket*/
 	if(close(sockfd)<0){
-		fprintf(stderr,"Error closing file: %s\n",strerror(errno));
+		fprintf(stderr,"Error closing socket: %s\n",strerror(errno));
 		return 1;
 	}
 

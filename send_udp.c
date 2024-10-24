@@ -28,6 +28,7 @@ int main(int argc, char *argv[]){
 	hints.ai_protocol = 0;
 	hints.ai_flags = 0;
 	int gai_code = getaddrinfo(dest_addr, port, &hints, &result);
+	/*GAI code failed*/
 	if(gai_code != 0){
 		fprintf(stderr, "Error getting address info: %s\n", gai_strerror(gai_code));
 		return 1;
@@ -35,6 +36,7 @@ int main(int argc, char *argv[]){
 
 	/*Create socket*/
 	int sockfd = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+	/*Failed creating socket*/
 	if(sockfd < 0){
 		fprintf(stderr, "Error creating socket: %s\n", strerror(errno));
 		freeaddrinfo(result);
@@ -49,9 +51,10 @@ int main(int argc, char *argv[]){
 
    This function is a cancellation point and therefore not marked with*/
 
-	/*"Connect"*/
+	/*"Connect" by iterating through each element from the linked list until connect is successfull or end of list is null*/
     addrinfo *current_element;
     for(current_element = result; current_element != NULL; current_element = current_element->ai_next){
+		/*If successful connection, exit*/
         if(connect(sockfd, current_element->ai_addr, current_element->ai_addrlen) == 0){
             break; 
         }
@@ -68,7 +71,7 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
-	/*Send message*/
+	/*Read until empry end message*/
 	ssize_t read_bytes;
 	while((read_bytes = read(STDIN_FILENO, buffer, BUFFSIZE)) > 0){
 		if(send(sockfd,buffer,read_bytes,0) < 0){
