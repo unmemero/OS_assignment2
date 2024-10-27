@@ -73,7 +73,7 @@ int main(int argc, char *argv[]){
 	ssize_t received;
 	sockaddr_in sender;
 	socklen_t sender_len = sizeof(sender);
-	for(;;){
+	while(1){
 		/*Receive data*/
 		received = recvfrom(sockfd, buffer, BUFFSIZE, 0, (sockaddr *)&sender, &sender_len);
 		if(received >= 0){

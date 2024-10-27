@@ -6,10 +6,33 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <sys/select.h>
 
-#define BUFFSIZE 480
+#define SENDBUFFSIZE 480
+#define RECVBUFFSIZE 65536
 typedef struct addrinfo addrinfo;
 
+/*Better write*/
+ssize_t better_write(int fd, const char *buf, size_t count) {
+    size_t already_written = 0;
+    size_t to_be_written = count;
+    ssize_t res_write;
+
+    if (count == 0) return count;
+
+    while (to_be_written > 0) {
+        res_write = write(fd, &buf[already_written], to_be_written);
+        if (res_write < 0) {
+            return res_write; 
+        }
+        if (res_write == 0) {
+            return already_written;
+        }
+        already_written += res_write;
+        to_be_written -= res_write;
+    }
+    return already_written;
+}
 
 int main(int argc, char *argv[]){
 	/*Check args*/
@@ -19,7 +42,7 @@ int main(int argc, char *argv[]){
 	}
 
 	/*Keep track of buffer, destination, and port*/	
-	char *dest_addr = argv[1], *port = argv[2], buffer[BUFFSIZE];
+	char *dest_addr = argv[1], *port = argv[2], send_buffer[SENDBUFFSIZE], recv_buffer[RECVBUFFSIZE];
 
 	/*Get address info*/
 	addrinfo hints, *result;
@@ -42,20 +65,132 @@ int main(int argc, char *argv[]){
 		return 1;
 	}
 
-	/*Send message*/
-	ssize_t bytes_read;
-	while((bytes_read = read(STDIN_FILENO,buffer,BUFFSIZE)) > 0){
-		ssize_t bytes_sent = sendto(sockfd, buffer, bytes_read, 0, result->ai_addr, result->ai_addrlen);
-		
+	/*Check*/
+    addrinfo *current_element;
+    for(current_element = result; current_element != NULL; current_element = current_element->ai_next){
+		/*If successful connection, exit*/
+        if(connect(sockfd, current_element->ai_addr, current_element->ai_addrlen) == 0){
+            break; 
+        }
+    }
+
+    /*Connection failed*/
+    if(current_element == NULL){
+        fprintf(stderr, "Error connecting to server: %s\n", strerror(errno));
+        freeaddrinfo(result);
+		if(close(sockfd) < 0){
+			fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
+			return 1;
+		}
+        return 1;
+    }
+
+	/*Go while write*/
+	ssize_t bytes_read, bytes_sent, bytes_received;
+	fd_set read_fds;
+	int max_fd = (STDIN_FILENO > sockfd) ? STDIN_FILENO : sockfd, select_result;
+	while(1){
+		/*Clear FD set*/
+		FD_ZERO(&read_fds);
+
+		/*Add FDs to set*/
+		FD_SET(STDIN_FILENO, &read_fds);
+		FD_SET(sockfd, &read_fds);
+
+		/*Select*/
+		select_result = select(max_fd + 1, &read_fds, NULL, NULL, NULL);
+		if(select_result < 0){
+			fprintf(stderr, "Error selecting: %s\n", strerror(errno));
+			freeaddrinfo(result);
+			if(close(sockfd) < 0){
+				fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
+				return 1;
+			}
+			break;
+		}
+
+		/*Check STDIN for data*/
+		if(FD_ISSET(STDIN_FILENO, &read_fds)){
+
+			/*Read*/
+			bytes_read = read(STDIN_FILENO, send_buffer, SENDBUFFSIZE);
+			/*Reed failed*/
+			if(bytes_read < 0){
+				fprintf(stderr, "Error reading from STDIN: %s\n", strerror(errno));
+				freeaddrinfo(result);
+				if(close(sockfd) < 0){
+					fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
+					return 1;
+				}
+				return 1;
+			}
+
+			if(bytes_read == 0){
+				/*Send empty*/
+				if((bytes_sent = send(sockfd,send_buffer,bytes_read,0))< 0){
+					fprintf(stderr, "Error sending data: %s\n", strerror(errno));
+					freeaddrinfo(result);
+					if(close(sockfd) < 0){
+						fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
+						return 1;
+					}
+					return 1;
+				}
+				break;
+			}
+
+			/*Send full*/
+			if((bytes_sent = send(sockfd,send_buffer,bytes_read,0))< 0){
+				fprintf(stderr, "Error sending data: %s\n", strerror(errno));
+				freeaddrinfo(result);
+				if(close(sockfd) < 0){
+					fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
+					return 1;
+				}
+				return 1;
+			}
+		}
+
+		/*Check you sock for gifts*/
+		if(FD_ISSET(sockfd, &read_fds)){
+			/*Receive*/
+			bytes_received = recv(sockfd, recv_buffer, RECVBUFFSIZE, 0);
+			/*Receive failed*/
+			if(bytes_received < 0){
+				fprintf(stderr, "Error receiving data: %s\n", strerror(errno));
+				freeaddrinfo(result);
+				if(close(sockfd) < 0){
+					fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
+					return 1;
+				}
+				return 1;
+			}
+
+			/*Empty buffer received*/
+			if(bytes_received == 0){
+				break;
+			}
+
+			/*Write*/
+			if((bytes_sent  = better_write(STDOUT_FILENO, recv_buffer, bytes_received)) < 0){
+				fprintf(stderr, "Error writing to STDOUT: %s\n", strerror(errno));
+				freeaddrinfo(result);
+				if(close(sockfd) < 0){
+					fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
+					return 1;
+				}
+				return 1;
+			}
+		}
+
 	}
 
-	if(bytes_read < 0){
-		fprintf(stderr, "Error readig from STTDIN: %s\n", strerror(errno));
-		freeaddrinfo(result);
-		close(sockfd);
+	/*Clean up*/
+	freeaddrinfo(result);
+	if(close(sockfd) < 0){
+		fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
 		return 1;
 	}
-
 
 	return 0;
 }
