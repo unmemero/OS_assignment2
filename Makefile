@@ -2,6 +2,11 @@ CC = gcc
 CFLAGS = -Wall -Wextra -Werror -g -O3
 
 # Compilation rules
+all:
+	for file in *.c; do \
+		$(CC) $(CFLAGS) -o $${file%.c} $${file}; \
+	done
+
 send_udp: send_udp.c
 	$(CC) $(CFLAGS) -o send_udp send_udp.c
 
