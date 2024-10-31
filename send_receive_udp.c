@@ -9,25 +9,23 @@
 #include <sys/select.h>
 
 #define SENDBUFFSIZE 480
-#define RECVBUFFSIZE 65536
+#define RECVBUFFSIZE (1<<16)
+#define PRINTERRMSG(msg) fprintf(stderr, "%s: %s\n", msg, strerror(errno))
+#define ret return 1
+
 typedef struct addrinfo addrinfo;
 
 /*Better write*/
 ssize_t better_write(int fd, const char *buf, size_t count) {
-    size_t already_written = 0;
-    size_t to_be_written = count;
+    size_t already_written = 0, to_be_written = count;
     ssize_t res_write;
 
     if (count == 0) return count;
 
     while (to_be_written > 0) {
         res_write = write(fd, &buf[already_written], to_be_written);
-        if (res_write < 0) {
-            return res_write; 
-        }
-        if (res_write == 0) {
-            return already_written;
-        }
+        if (res_write < 0) return res_write;
+        if (res_write == 0) return already_written;
         already_written += res_write;
         to_be_written -= res_write;
     }
@@ -37,8 +35,8 @@ ssize_t better_write(int fd, const char *buf, size_t count) {
 int main(int argc, char *argv[]){
 	/*Check args*/
 	if(argc < 3){
-		fprintf(stderr, "Usage: %s <domain> <port>\n", argv[0]);
-		return 1;
+		PRINTERRMSG("Usage: ./send_receive_udp <server_ip> <port>");		
+		ret;
 	}
 
 	/*Keep track of buffer, destination, and port*/	
@@ -53,16 +51,16 @@ int main(int argc, char *argv[]){
 	hints.ai_flags = 0;
 	int gai_code = getaddrinfo(dest_addr, port, &hints, &result);
 	if(gai_code != 0){
-		fprintf(stderr, "Error getting address info: %s\n", gai_strerror(gai_code));
-		return 1;
+		PRINTERRMSG("Error getting address info");
+		ret;
 	}
 
 	/*Create socket*/
 	int sockfd = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
 	if(sockfd < 0){
-		fprintf(stderr, "Error creating socket: %s\n", strerror(errno));
+		PRINTERRMSG("Error creating socket");
 		freeaddrinfo(result);
-		return 1;
+		ret;
 	}
 
 	/*Check*/
@@ -76,14 +74,14 @@ int main(int argc, char *argv[]){
 
     /*Connection failed*/
     if(current_element == NULL){
-        fprintf(stderr, "Error connecting to server: %s\n", strerror(errno));
+		PRINTERRMSG("Error connecting to server");
         freeaddrinfo(result);
-		if(close(sockfd) < 0){
-			fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
-			return 1;
-		}
-        return 1;
+		if(close(sockfd) < 0) PRINTERRMSG("Error closing socket");
+        ret;
     }
+
+	/*Goodbye address info*/
+	freeaddrinfo(result);
 
 	/*Go while write*/
 	ssize_t bytes_read, bytes_sent, bytes_received;
@@ -100,11 +98,10 @@ int main(int argc, char *argv[]){
 		/*Select*/
 		select_result = select(max_fd + 1, &read_fds, NULL, NULL, NULL);
 		if(select_result < 0){
-			fprintf(stderr, "Error selecting: %s\n", strerror(errno));
-			freeaddrinfo(result);
+			PRINTERRMSG("Error in select");
 			if(close(sockfd) < 0){
-				fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
-				return 1;
+				PRINTERRMSG("Error closing socket");
+				ret;
 			}
 			break;
 		}
@@ -116,38 +113,26 @@ int main(int argc, char *argv[]){
 			bytes_read = read(STDIN_FILENO, send_buffer, SENDBUFFSIZE);
 			/*Reed failed*/
 			if(bytes_read < 0){
-				fprintf(stderr, "Error reading from STDIN: %s\n", strerror(errno));
-				freeaddrinfo(result);
-				if(close(sockfd) < 0){
-					fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
-					return 1;
-				}
-				return 1;
+				PRINTERRMSG("Error reading data");
+				if(close(sockfd) < 0)PRINTERRMSG("Error closing socket");
+				ret;
 			}
 
 			if(bytes_read == 0){
 				/*Send empty*/
 				if((bytes_sent = send(sockfd,send_buffer,bytes_read,0))< 0){
-					fprintf(stderr, "Error sending data: %s\n", strerror(errno));
-					freeaddrinfo(result);
-					if(close(sockfd) < 0){
-						fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
-						return 1;
-					}
-					return 1;
+					PRINTERRMSG("Error sending data");
+					if(close(sockfd) < 0) PRINTERRMSG("Error closing socket");
+					ret;
 				}
 				break;
 			}
 
 			/*Send full*/
 			if((bytes_sent = send(sockfd,send_buffer,bytes_read,0))< 0){
-				fprintf(stderr, "Error sending data: %s\n", strerror(errno));
-				freeaddrinfo(result);
-				if(close(sockfd) < 0){
-					fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
-					return 1;
-				}
-				return 1;
+				PRINTERRMSG("Error sending data");
+				if(close(sockfd) < 0) PRINTERRMSG("Error closing socket");
+				ret;
 			}
 		}
 
@@ -157,39 +142,28 @@ int main(int argc, char *argv[]){
 			bytes_received = recv(sockfd, recv_buffer, RECVBUFFSIZE, 0);
 			/*Receive failed*/
 			if(bytes_received < 0){
-				fprintf(stderr, "Error receiving data: %s\n", strerror(errno));
-				freeaddrinfo(result);
-				if(close(sockfd) < 0){
-					fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
-					return 1;
-				}
-				return 1;
+				PRINTERRMSG("Error receiving data");
+				if(close(sockfd) < 0) PRINTERRMSG("Error closing socket");
+				ret;
 			}
 
 			/*Empty buffer received*/
-			if(bytes_received == 0){
-				break;
-			}
+			if(bytes_received == 0) break;
 
 			/*Write*/
 			if((bytes_sent  = better_write(STDOUT_FILENO, recv_buffer, bytes_received)) < 0){
-				fprintf(stderr, "Error writing to STDOUT: %s\n", strerror(errno));
-				freeaddrinfo(result);
-				if(close(sockfd) < 0){
-					fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
-					return 1;
-				}
-				return 1;
+				PRINTERRMSG("Error writing to stdout");
+				if(close(sockfd) < 0) PRINTERRMSG("Error closing socket");
+				ret;
 			}
 		}
 
 	}
 
 	/*Clean up*/
-	freeaddrinfo(result);
 	if(close(sockfd) < 0){
-		fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
-		return 1;
+		PRINTERRMSG("Error closing socket");
+		ret;
 	}
 
 	return 0;

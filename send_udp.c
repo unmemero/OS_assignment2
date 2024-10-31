@@ -8,13 +8,16 @@
 #include <netdb.h>
 
 #define BUFFSIZE 480
+#define PRINTERRMSG(msg) fprintf(stderr, "%s: %s\n", msg, strerror(errno))
+#define ret return 1
+
 typedef struct addrinfo addrinfo;
 
 int main(int argc, char *argv[]){
 	/*Check if we have server address and port*/
 	if(argc < 3){
-		fprintf(stderr, "Usage: ./send_udp <domain> <port> %s\n", strerror(errno));
-		return 1;
+		PRINTERRMSG("Usage <destination_address> <port>");
+		ret;
 	}
 
 	/*Keep track of buffer, destination, and port*/	
@@ -30,17 +33,17 @@ int main(int argc, char *argv[]){
 	int gai_code = getaddrinfo(dest_addr, port, &hints, &result);
 	/*GAI code failed*/
 	if(gai_code != 0){
-		fprintf(stderr, "Error getting address info: %s\n", gai_strerror(gai_code));
-		return 1;
+		PRINTERRMSG("Error getting address info");
+		ret;
 	}
 
 	/*Create socket*/
 	int sockfd = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
 	/*Failed creating socket*/
 	if(sockfd < 0){
-		fprintf(stderr, "Error creating socket: %s\n", strerror(errno));
+		PRINTERRMSG("Error creating socket");
 		freeaddrinfo(result);
-		return 1;
+		ret;
 	}
 
 	/*from socket.h*/
@@ -52,66 +55,52 @@ int main(int argc, char *argv[]){
    This function is a cancellation point and therefore not marked with*/
 
 	/*"Connect" by iterating through each element from the linked list until connect is successfull or end of list is null*/
-    addrinfo *current_element;
-    for(current_element = result; current_element != NULL; current_element = current_element->ai_next){
-		/*If successful connection, exit*/
-        if(connect(sockfd, current_element->ai_addr, current_element->ai_addrlen) == 0){
-            break; 
-        }
-    }
+    /*If successful connection, exit*/
+	addrinfo *current_element;
+    for(current_element = result; current_element != NULL; current_element = current_element->ai_next) if(connect(sockfd, current_element->ai_addr, current_element->ai_addrlen) == 0) break; 
 
     /*Connection failed*/
     if(current_element == NULL){
-        fprintf(stderr, "Error connecting to server: %s\n", strerror(errno));
-        freeaddrinfo(result);
-		if(close(sockfd) < 0){
-			fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
-			return 1;
-		}
-        return 1;
+		PRINTERRMSG("Error connecting to server");
+		freeaddrinfo(result);
+		if(close(sockfd) < 0) PRINTERRMSG("Error closing socket");
+        ret;
     }
+
+	/*
+		"We don't need this, so goodbye address info, and you were a good friend"
+			- Alec Guinness
+	*/
+	freeaddrinfo(result);
 
 	/*Read until empry end message*/
 	ssize_t read_bytes;
 	while((read_bytes = read(STDIN_FILENO, buffer, BUFFSIZE)) > 0){
 		if(send(sockfd,buffer,read_bytes,0) < 0){
-			fprintf(stderr, "Error sending: %s\n", strerror(errno));
-			freeaddrinfo(result);
-			if(close(sockfd) < 0){
-				fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
-				return 1;
-			}
-			return 1;
+			PRINTERRMSG("Error sending data");
+			if(close(sockfd) < 0) PRINTERRMSG("Error closing socket");
+			ret;
 		}
 	}
 
 	/*Read failed*/
 	if(read_bytes < 0){
-		fprintf(stderr, "Error reading from STDIN: %s\n", strerror(errno));
-		freeaddrinfo(result);
-		if(close(sockfd) < 0){
-			fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
-			return 1;
-		}
-		return 1;
+		PRINTERRMSG("Error reading data");
+		if(close(sockfd) < 0) PRINTERRMSG("Error closing socket");
+		ret;
 	}
 
 	/*Send empty packet*/
 	if(send(sockfd, NULL, 0, 0) < 0){
-		fprintf(stderr, "Error sending data: %s\n", strerror(errno));
-		freeaddrinfo(result);
-		if(close(sockfd) < 0){
-			fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
-			return 1;
-		}
-		return 1;
+		PRINTERRMSG("Error sending data");
+		if(close(sockfd) < 0) PRINTERRMSG("Error closing socket");
+		ret;
 	}
 
 	/*Closing aand cleaning*/
-	freeaddrinfo(result);
 	if(close(sockfd) < 0){
-		fprintf(stderr, "Error closing socket: %s\n", strerror(errno));
-		return 1;
+		PRINTERRMSG("Error closing socket");
+		ret;
 	}
 
 	return 0;

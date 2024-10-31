@@ -9,7 +9,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define BUFFSIZE 65536
+#define BUFFSIZE (1<<16)
+#define PRINTERRMSG(msg) fprintf(stderr, "%s: %s\n", msg, strerror(errno))
+#define ret return 1
 
 typedef long long int muy_largo_t; // Easier to write
 typedef struct sockaddr_in sockaddr_in; 
@@ -17,20 +19,15 @@ typedef struct sockaddr sockaddr;
 
 /*Better write*/
 ssize_t better_write(int fd, const char *buf, size_t count) {
-    size_t already_written = 0;
-    size_t to_be_written = count;
+    size_t already_written = 0,to_be_written = count;
     ssize_t res_write;
 
     if (count == 0) return count;
 
     while (to_be_written > 0) {
         res_write = write(fd, &buf[already_written], to_be_written);
-        if (res_write < 0) {
-            return res_write; 
-        }
-        if (res_write == 0) {
-            return already_written;
-        }
+        if (res_write < 0) return res_write; 
+        if (res_write == 0) return already_written;
         already_written += res_write;
         to_be_written -= res_write;
     }
@@ -57,23 +54,23 @@ static int convert_port_name(uint16_t *port, const char *port_name) {
 int main(int argc, char *argv[]) {
     /*Check if we have port as arg*/
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s <port>\n", argv[0]);
-        return 1;
+        PRINTERRMSG("Usage: ./receive_udp <port>");
+        ret;
     }
 
     /*Get port num*/
     uint16_t port;
     if (convert_port_name(&port, argv[1]) < 0) {
-        fprintf(stderr, "Invalid port number: %s\n", argv[1]);
-        return 1;
+        PRINTERRMSG("Error converting port number");
+        ret;
     }
 
     /*Create socket*/
     int socket_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     /*Socket failed*/
     if (socket_fd < 0) {
-        fprintf(stderr, "Failed creating socket: %s\n", strerror(errno));
-        return 1;
+        PRINTERRMSG("Error creating socket");
+        ret;
     }
 
     /*Bind socket*/
@@ -85,9 +82,9 @@ int main(int argc, char *argv[]) {
 
     /*Binding*/
     if(bind(socket_fd, (sockaddr *)&server_address, sizeof(server_address)) < 0) {
-        fprintf(stderr, "Failed binding socket: %s\n", strerror(errno));
-        close(socket_fd);
-        return 1;
+        PRINTERRMSG("Error binding socket");
+        if(close(socket_fd)<0) PRINTERRMSG("Error closing socket");
+        ret;
     }
 
     /*Receive data*/
@@ -97,26 +94,26 @@ int main(int argc, char *argv[]) {
     /*Receive and print data*/
     while ((bytes_received = recv(socket_fd, buffer, BUFFSIZE, 0)) > 0) {
         if (better_write(STDOUT_FILENO, buffer, bytes_received) < 0) {
-            fprintf(stderr, "Failed writing data: %s\n", strerror(errno));
-            close(socket_fd);
-            return 1;
+            PRINTERRMSG("Error writing to stdout");
+            if(close(socket_fd)) PRINTERRMSG("Error closing socket");
+            ret;
         }
     }
 
     /*FAILED RECV*/
     if (bytes_received < 0) {
-        fprintf(stderr, "Failed receiving data: %s\n", strerror(errno));
+        PRINTERRMSG("Error receiving data");
         if(close(socket_fd)){
-            fprintf(stderr, "Failed closing socket: %s\n", strerror(errno));
-            return 1;
+            PRINTERRMSG("Error closing socket");
+            ret;
         };
         return 1;
     }
 
     /*Close socket*/
     if (close(socket_fd) < 0) {
-        fprintf(stderr, "Failed closing socket: %s\n", strerror(errno));
-        return 1;
+        PRINTERRMSG("Error closing socket");
+        ret;
     }
 
     /*All clear*/
