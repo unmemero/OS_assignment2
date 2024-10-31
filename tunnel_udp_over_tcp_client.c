@@ -230,7 +230,7 @@ int main(int argc, char **argv){
 				if(close(tcp_socketfd) < 0) PRINTERRMSG("Error closing TCP socket");
 				ret;
 			}
-
+			
 			/*EOF reached*/
 			if(bytes_received == MYEOF) break;
 
