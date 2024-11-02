@@ -150,7 +150,10 @@ int main(int argc, char **argv){
 		ret;
 	}
 
-	/*We don't need this, so goodbye address info, you were a good friend*/
+	/*
+		We don't need this, so goodbye address info, you were a good friend
+			-Alec Guinness	
+	*/
 	freeaddrinfo(result);
 
 	/*We will use select to check for activity on both sockets*/
